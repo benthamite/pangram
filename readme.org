@@ -35,6 +35,8 @@ from the =pass= password store via =auth-source-pass.el=.  It depends
 only on built-in Emacs libraries (~json~, ~url~, ~auth-source-pass~,
 ~seq~) and requires Emacs 29.1 or later.
 
+The development repository is on [[https://github.com/benthamite/pangram][GitHub]].
+
 ** Segment classification
 :PROPERTIES:
 :CUSTOM_ID: h:segment-classification
