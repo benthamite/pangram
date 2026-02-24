@@ -3,7 +3,7 @@
 ;; Copyright (C) 2025
 
 ;; Author: Pablo Stafforini
-;; Version: 0.1.0
+;; Version: 0.1.1
 ;; Package-Requires: ((emacs "29.1"))
 ;; Keywords: tools
 ;; URL: https://github.com/benthamite/pangram
@@ -71,7 +71,7 @@ to see the classification details."
          (source-buffer (current-buffer))
          (offset beg))
     (when (string-empty-p (string-trim text))
-      (error "No text to analyze"))
+      (user-error "No text to analyze"))
     (message "Sending text to Pangram API...")
     (pangram--api-call
      text
@@ -87,9 +87,12 @@ to see the classification details."
 
 (defun pangram--get-api-key ()
   "Retrieve the Pangram API key from auth-source-pass."
-  (or (auth-source-pass-get "key"
-        (concat "chrome/pangram.com/" (getenv "PERSONAL_EMAIL")))
-      (error "Pangram API key not found in pass store")))
+  (let ((email (getenv "PERSONAL_EMAIL")))
+    (unless email
+      (user-error "Environment variable PERSONAL_EMAIL is not set"))
+    (or (auth-source-pass-get "key"
+          (concat "chrome/pangram.com/" email))
+        (user-error "Pangram API key not found in pass store"))))
 
 (defun pangram--encode-request-body (text)
   "Encode TEXT as a JSON request body safe for `url-retrieve'.
@@ -128,41 +131,59 @@ CALLBACK is called with the parsed JSON response."
     (url-retrieve
      pangram-api-url
      (lambda (status cb)
-       (if (plist-get status :error)
-           (progn
-             (kill-buffer)
-             (message "Pangram API error: %s" (plist-get status :error)))
-         (let ((response (pangram--parse-response)))
-           (kill-buffer)
-           (funcall cb response))))
+       (unwind-protect
+           (if (plist-get status :error)
+               (message "Pangram API error: %s" (plist-get status :error))
+             (condition-case err
+                 (progn
+                   (pangram--check-http-status)
+                   (let ((response (pangram--parse-response)))
+                     (funcall cb response)))
+               (error (message "Pangram: %s" (error-message-string err)))))
+         (kill-buffer)))
      (list callback)
      t nil)))
+
+(defun pangram--check-http-status ()
+  "Check the HTTP status code in the current response buffer.
+Signal an error for non-2xx status codes."
+  (goto-char (point-min))
+  (unless (re-search-forward "^HTTP/[0-9.]+ \\([0-9]+\\)" nil t)
+    (error "Pangram: malformed HTTP response"))
+  (let ((status-code (string-to-number (match-string 1))))
+    (unless (<= 200 status-code 299)
+      (error "Pangram API returned HTTP %d" status-code))))
 
 (defun pangram--parse-response ()
   "Parse the JSON response from the current HTTP response buffer."
   (goto-char (point-min))
-  (re-search-forward "^$" nil t)
-  (forward-char)
-  (json-read))
+  (unless (re-search-forward "\n\n" nil t)
+    (error "Pangram: malformed HTTP response (no header boundary)"))
+  (condition-case err
+      (json-read)
+    (json-error
+     (error "Pangram: failed to parse API response as JSON: %s"
+            (error-message-string err)))))
 
 (defun pangram--handle-response (data source-buffer offset)
   "Apply overlays from Pangram response DATA to SOURCE-BUFFER.
 OFFSET is the buffer position corresponding to text index 0."
-  (unless (buffer-live-p source-buffer)
-    (error "Source buffer no longer exists"))
-  (let ((windows (alist-get 'windows data))
-        (headline (alist-get 'headline data))
-        (fraction-ai (alist-get 'fraction_ai data))
-        (fraction-assisted (alist-get 'fraction_ai_assisted data))
-        (fraction-human (alist-get 'fraction_human data)))
-    (with-current-buffer source-buffer
-      (remove-overlays (point-min) (point-max) 'pangram t)
-      (pangram--apply-overlays windows offset))
-    (message "Pangram: %s — AI: %.0f%%, AI-assisted: %.0f%%, Human: %.0f%%"
-             headline
-             (* 100 fraction-ai)
-             (* 100 fraction-assisted)
-             (* 100 fraction-human))))
+  (if (not (buffer-live-p source-buffer))
+      (message "Pangram: source buffer no longer exists")
+    (let ((windows (alist-get 'windows data))
+          (headline (or (alist-get 'headline data) "Unknown"))
+          (fraction-ai (or (alist-get 'fraction_ai data) 0))
+          (fraction-assisted (or (alist-get 'fraction_ai_assisted data) 0))
+          (fraction-human (or (alist-get 'fraction_human data) 0)))
+      (with-current-buffer source-buffer
+        (remove-overlays (point-min) (point-max) 'pangram t)
+        (when windows
+          (pangram--apply-overlays windows offset)))
+      (message "Pangram: %s — AI: %.0f%%, AI-assisted: %.0f%%, Human: %.0f%%"
+               headline
+               (* 100 fraction-ai)
+               (* 100 fraction-assisted)
+               (* 100 fraction-human)))))
 
 (defun pangram--apply-overlays (windows offset)
   "Create overlays for AI and AI-assisted segments in WINDOWS.
@@ -185,15 +206,18 @@ them to buffer positions.  Human segments are not highlighted."
     (overlay-put ov 'pangram t)
     (overlay-put ov 'face face)
     (overlay-put ov 'help-echo
-                 (format "%s (score: %.2f, confidence: %s)"
-                         label score confidence))))
+                 (format "%s (score: %s, confidence: %s)"
+                         (or label "unknown")
+                         (if score (format "%.2f" score) "N/A")
+                         (or confidence "N/A")))))
 
 (defun pangram--label-face (label)
   "Return the face for a segment LABEL, or nil for human text."
-  (cond
-   ((string-match-p "AI Generated" label) 'pangram-ai)
-   ((string-match-p "Human" label) nil)
-   (t 'pangram-ai-assisted)))
+  (when label
+    (cond
+     ((string-match-p "AI[- ]Generated" label) 'pangram-ai)
+     ((string-match-p "Human" label) nil)
+     (t 'pangram-ai-assisted))))
 
 (provide 'pangram)
 
