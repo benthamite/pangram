@@ -1,0 +1,332 @@
+#+title: pangram: AI content detection via Pangram API
+#+author: Pablo Stafforini
+#+email: pablo@stafforini.com
+#+language: en
+#+options: ':t toc:t author:t email:t num:t
+#+startup: content
+#+export_file_name: pangram.info
+#+texinfo_filename: pangram.info
+#+texinfo_dir_category: Emacs misc features
+#+texinfo_dir_title: Pangram: (pangram)
+#+texinfo_dir_desc: AI content detection via Pangram API
+
+This manual describes the features and customization options for the Emacs Lisp file =pangram.el=.
+
+* Overview
+:PROPERTIES:
+:CUSTOM_ID: h:overview
+:END:
+
+=pangram.el= provides an Emacs interface to the [[https://pangram.readthedocs.io/en/latest/api/rest.html][Pangram Labs API (v3)]]
+for detecting AI-generated content in text.  Given a buffer or an
+active region, the package sends the text to Pangram's inference
+endpoint and visually highlights segments that the API classifies as
+AI-generated or AI-assisted, using distinct overlay faces.  Human-written
+segments are left unmarked.
+
+The core workflow is straightforward: invoke =M-x pangram-detect= to
+analyze text, then hover over highlighted segments to see classification
+details (label, confidence score, and AI assistance score) in the
+echo area.  When you are done reviewing, invoke =M-x pangram-clear= to
+remove the overlays.
+
+The package requires an active Pangram Labs API key, which it retrieves
+from the =pass= password store via =auth-source-pass.el=.  It depends
+only on built-in Emacs libraries (~json~, ~url~, ~auth-source-pass~,
+~seq~) and requires Emacs 29.1 or later.
+
+** Segment classification
+:PROPERTIES:
+:CUSTOM_ID: h:segment-classification
+:END:
+
+The Pangram API divides the submitted text into /windows/ (contiguous
+segments) and assigns each a classification label.  =pangram.el=
+recognizes three categories:
+
+- *AI-generated* -- text that the API identifies as produced entirely
+  by an AI system.  Highlighted with the ~pangram-ai~ face.
+- *AI-assisted* -- text that appears to have been written with AI
+  assistance but retains significant human involvement.  Highlighted
+  with the ~pangram-ai-assisted~ face.
+- *Human* -- text classified as entirely human-written.  Not highlighted.
+
+After analysis, the echo area displays a summary line showing the
+overall verdict (headline) and the percentage breakdown across all
+three categories.
+
+* Installation
+:PROPERTIES:
+:CUSTOM_ID: h:installation
+:END:
+
+** Prerequisites
+:PROPERTIES:
+:CUSTOM_ID: h:prerequisites
+:END:
+
+Before using =pangram.el=, you need:
+
+1. A Pangram Labs API key.  Sign up at [[https://pangram.com][pangram.com]] to obtain one.
+2. The =pass= password manager with the =auth-source-pass= integration
+   configured in Emacs.
+3. The environment variable ~PERSONAL_EMAIL~ set to the email address
+   associated with your Pangram account.
+
+Store your API key in the pass store under the path
+=chrome/pangram.com/YOUR_EMAIL=, with the key stored in a field named
+=key=.  For example:
+
+#+begin_src shell
+pass insert chrome/pangram.com/user@example.com
+#+end_src
+
+Then edit the entry to include a line like =key: YOUR_API_KEY=.
+
+** With elpaca
+:PROPERTIES:
+:CUSTOM_ID: h:install-elpaca
+:END:
+
+#+begin_src emacs-lisp
+(use-package pangram
+  :elpaca (:host github :repo "benthamite/pangram"))
+#+end_src
+
+** With straight.el
+:PROPERTIES:
+:CUSTOM_ID: h:install-straight
+:END:
+
+#+begin_src emacs-lisp
+(use-package pangram
+  :straight (:host github :repo "benthamite/pangram"))
+#+end_src
+
+** With use-package and package-vc
+:PROPERTIES:
+:CUSTOM_ID: h:install-package-vc
+:END:
+
+On Emacs 29 or later, you can use the built-in ~package-vc-install~:
+
+#+begin_src emacs-lisp
+(use-package pangram
+  :vc (:url "https://github.com/benthamite/pangram" :branch "main"))
+#+end_src
+
+** With quelpa
+:PROPERTIES:
+:CUSTOM_ID: h:install-quelpa
+:END:
+
+#+begin_src emacs-lisp
+(use-package pangram
+  :quelpa (pangram :fetcher github :repo "benthamite/pangram"))
+#+end_src
+
+** Manual installation
+:PROPERTIES:
+:CUSTOM_ID: h:install-manual
+:END:
+
+Clone the repository and add it to your ~load-path~:
+
+#+begin_src emacs-lisp
+(add-to-list 'load-path "/path/to/pangram")
+(require 'pangram)
+#+end_src
+
+* User options
+:PROPERTIES:
+:CUSTOM_ID: h:user-options
+:END:
+
+** API endpoint
+:PROPERTIES:
+:CUSTOM_ID: h:api-endpoint
+:END:
+
+#+vindex: pangram-api-url
+The user option ~pangram-api-url~ specifies the URL of the Pangram
+inference API endpoint.  Its default value is
+=https://text.api.pangram.com/v3=, which points to version 3 of the
+Pangram REST API.
+
+You would change this option if Pangram releases a newer API version
+or if you need to point to a different endpoint (for example, a
+self-hosted or staging instance).  The value must be a string
+containing a fully qualified URL.
+
+** Faces
+:PROPERTIES:
+:CUSTOM_ID: h:faces
+:END:
+
+=pangram.el= defines two faces for highlighting detected segments.
+Both adapt to the current background mode (light or dark), so they
+remain legible regardless of your theme.
+
+#+vindex: pangram-ai
+The face ~pangram-ai~ is used for text segments classified as
+AI-generated.  It defaults to a red-tinted background: =#ffcccc= on
+light backgrounds and =#5c2020= on dark backgrounds.  Customize this
+face if you want a different visual treatment for AI-generated text,
+or if it clashes with your color theme.
+
+#+vindex: pangram-ai-assisted
+The face ~pangram-ai-assisted~ is used for text segments classified as
+AI-assisted.  It defaults to an amber-tinted background: =#fff0cc= on
+light backgrounds and =#5c4020= on dark backgrounds.  The warmer tone
+distinguishes it from the sharper red of ~pangram-ai~, reflecting the
+lower severity of the classification.
+
+You can customize either face with =M-x customize-face= or by setting
+their attributes in your init file:
+
+#+begin_src emacs-lisp
+(set-face-attribute 'pangram-ai nil :background "#ff9999" :foreground "#000000")
+#+end_src
+
+* Commands
+:PROPERTIES:
+:CUSTOM_ID: h:commands
+:END:
+
+** Detecting AI-generated content
+:PROPERTIES:
+:CUSTOM_ID: h:detecting
+:END:
+
+#+findex: pangram-detect
+The command ~pangram-detect~ sends text to the Pangram API for
+AI content analysis and highlights the results in the current buffer.
+
+If a region is active, only the selected text is analyzed; otherwise,
+the entire buffer contents are sent.  The command operates
+asynchronously: it sends the request and returns immediately, applying
+overlays to the buffer when the response arrives.  A progress message
+("Sending text to Pangram API...") appears in the echo area while the
+request is in flight.
+
+Once the API responds, =pangram.el= creates overlays on each text
+segment that the API classified as AI-generated or AI-assisted, using
+the ~pangram-ai~ and ~pangram-ai-assisted~ faces respectively
+([[#h:faces][Faces]]).  Human-classified segments receive no overlay.
+Hovering over any highlighted segment displays a tooltip with the
+segment's label, AI assistance score (a float between 0 and 1), and
+confidence level.
+
+The echo area then shows a summary line in the form:
+
+#+begin_example
+Pangram: HEADLINE -- AI: X%, AI-assisted: Y%, Human: Z%
+#+end_example
+
+Any previous Pangram overlays in the buffer are cleared before new
+ones are applied, so calling ~pangram-detect~ multiple times does not
+accumulate stale highlights.
+
+If the buffer or region contains only whitespace, the command signals
+an error rather than making a pointless API call.
+
+** Clearing overlays
+:PROPERTIES:
+:CUSTOM_ID: h:clearing
+:END:
+
+#+findex: pangram-clear
+The command ~pangram-clear~ removes all Pangram overlays from the
+current buffer.  This is useful when you have finished reviewing the
+analysis results and want to restore the buffer to its normal
+appearance, or when you want a clean slate before running
+~pangram-detect~ again on a different region.
+
+The command removes overlays across the entire buffer, regardless of
+whether the original analysis was performed on the full buffer or on a
+region.
+
+* Troubleshooting
+:PROPERTIES:
+:CUSTOM_ID: h:troubleshooting
+:END:
+
+** "Environment variable PERSONAL_EMAIL is not set"
+:PROPERTIES:
+:CUSTOM_ID: h:troubleshoot-email
+:END:
+
+This error means the ~PERSONAL_EMAIL~ environment variable is not
+available in your Emacs session.  Set it in your shell profile (e.g.,
+=.bashrc=, =.zshrc=) or in your Emacs init file:
+
+#+begin_src emacs-lisp
+(setenv "PERSONAL_EMAIL" "user@example.com")
+#+end_src
+
+If you launch Emacs from a desktop environment that does not inherit
+shell variables, you may need the =exec-path-from-shell= package or
+an equivalent mechanism to propagate environment variables.
+
+** "Pangram API key not found in pass store"
+:PROPERTIES:
+:CUSTOM_ID: h:troubleshoot-api-key
+:END:
+
+This error indicates that =auth-source-pass= could not find an entry
+at the expected path.  Verify that:
+
+1. The =pass= store contains an entry at
+   =chrome/pangram.com/YOUR_EMAIL= (where ~YOUR_EMAIL~ matches the
+   value of ~PERSONAL_EMAIL~).
+2. The entry contains a field named =key= with your Pangram API key
+   as its value.
+3. =auth-source-pass-enable= has been called in your init file, or
+   =auth-source-pass= is otherwise properly configured.
+
+** "Pangram API returned HTTP NNN"
+:PROPERTIES:
+:CUSTOM_ID: h:troubleshoot-http
+:END:
+
+A non-2xx HTTP status code was returned by the API.  Common causes:
+
+- *401*: invalid or expired API key.  Verify your key in the pass
+  store.
+- *429*: rate limit exceeded.  Wait before retrying.
+- *500* or *502*: server-side issue at Pangram.  Try again later.
+
+** No overlays appear after detection
+:PROPERTIES:
+:CUSTOM_ID: h:troubleshoot-no-overlays
+:END:
+
+If the echo area shows a summary but no text is highlighted, the API
+likely classified all segments as human-written.  This is the expected
+behavior -- =pangram.el= only highlights non-human segments.
+
+* License
+:PROPERTIES:
+:CUSTOM_ID: h:license
+:END:
+
+=pangram.el= is free software, distributed under the terms of the GNU
+General Public License, version 3 or later.  See the =COPYING= file
+or [[https://www.gnu.org/licenses/gpl-3.0.html][the GPL website]] for details.
+
+* Indices
+:PROPERTIES:
+:CUSTOM_ID: h:indices
+:END:
+
+** Function index
+:PROPERTIES:
+:INDEX: fn
+:CUSTOM_ID: h:function-index
+:END:
+
+** Variable index
+:PROPERTIES:
+:INDEX: vr
+:CUSTOM_ID: h:variable-index
+:END:
