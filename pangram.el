@@ -1,6 +1,6 @@
 ;;; pangram.el --- AI content detection via Pangram API -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2025
+;; Copyright (C) 2025-2026 Pablo Stafforini
 
 ;; Author: Pablo Stafforini
 ;; Version: 0.1.1
