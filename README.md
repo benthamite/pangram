@@ -23,21 +23,22 @@ Store your API key in the pass store under `chrome/pangram.com/YOUR_EMAIL`, with
 ### package-vc (built-in since Emacs 30)
 
 ```emacs-lisp
-(package-vc-install "https://github.com/benthamite/pangram")
+(use-package pangram
+  :vc (:url "https://github.com/benthamite/pangram"))
 ```
 
 ### Elpaca
 
 ```emacs-lisp
 (use-package pangram
-  :ensure (pangram :host github :repo "benthamite/pangram"))
+  :ensure (:host github :repo "benthamite/pangram"))
 ```
 
 ### straight.el
 
 ```emacs-lisp
-(straight-use-package
- '(pangram :type git :host github :repo "benthamite/pangram"))
+(use-package pangram
+  :straight (:host github :repo "benthamite/pangram"))
 ```
 
 ## Quick start
