@@ -308,6 +308,27 @@ If the echo area shows a summary but no text is highlighted, the API
 likely classified all segments as human-written.  This is the expected
 behavior -- =pangram.el= only highlights non-human segments.
 
+* Contributing
+:PROPERTIES:
+:CUSTOM_ID: h:contributing
+:END:
+
+The repository includes a CI pipeline that runs on every push and pull
+request to the =main= branch.  It byte-compiles the package and
+executes the ERT test suite (=pangram-test.el=) against Emacs 29.4 and
+30.1.
+
+To run the checks locally:
+
+#+begin_src shell
+make compile   # byte-compile with warnings as errors
+make test      # run the ERT test suite
+make clean     # remove .elc files
+#+end_src
+
+All HTTP calls in the test suite are mocked, so no API key or network
+access is needed to run the tests.
+
 * License
 :PROPERTIES:
 :CUSTOM_ID: h:license
