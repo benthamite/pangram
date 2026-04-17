@@ -56,7 +56,7 @@ Select a region of text (or leave the whole buffer unselected) and run `M-x pang
 
 ## Documentation
 
-For a comprehensive description of all user options, commands, and functions, see the [manual](README.org).
+For a comprehensive description of all user options, commands, and functions, see the [manual](https://stafforini.com/notes/pangram/).
 
 ## License
 
