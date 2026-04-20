@@ -4,6 +4,7 @@
 @settitle pangram: AI content detection via Pangram API
 @documentencoding UTF-8
 @documentlanguage en
+@c AUTO-GENERATED from README.org via ox-texinfo — do not edit manually.
 @c %**end of header
 
 @dircategory Emacs misc features
@@ -33,6 +34,7 @@ This manual describes the features and customization options for the Emacs Lisp 
 * User options::
 * Commands::
 * Troubleshooting::
+* Contributing::
 * License::
 * Indices::
 
@@ -381,6 +383,25 @@ store.
 If the echo area shows a summary but no text is highlighted, the API
 likely classified all segments as human-written.  This is the expected
 behavior -- @samp{pangram.el} only highlights non-human segments.
+
+@node Contributing
+@chapter Contributing
+
+The repository includes a CI pipeline that runs on every push and pull
+request to the @samp{main} branch.  It byte-compiles the package and
+executes the ERT test suite (@samp{pangram-test.el}) against Emacs 29.4 and
+30.1.
+
+To run the checks locally:
+
+@example
+make compile   # byte-compile with warnings as errors
+make test      # run the ERT test suite
+make clean     # remove .elc files
+@end example
+
+All HTTP calls in the test suite are mocked, so no API key or network
+access is needed to run the tests.
 
 @node License
 @chapter License
